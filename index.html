@@ -218,9 +218,12 @@
 const parseToUrl = v => {
   let path;
   if (/^https?:\/\//.test(v)) {
-    path = '/proxy/' + v;
+    // 末尾にスラッシュがなければ追加
+    path = v.endsWith('/') ? v : v + '/';
+    path = '/proxy/' + path;
   } else if (/^[\w.-]+\.[a-z]{2,}$/.test(v)) {
-    path = '/proxy/https://' + v;
+    path = v.endsWith('/') ? v : v + '/';
+    path = '/proxy/https://' + path;
   } else {
     path = '/proxy/' + engines[defaultEngine](v);
   }
@@ -229,6 +232,7 @@ const parseToUrl = v => {
   const origin = window.location.protocol + '//' + window.location.hostname;
   return new URL(path, origin).toString();
 };
+
 
 
     function addTab(initialValue) {
