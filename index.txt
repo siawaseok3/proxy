@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Webプロキシブラウザ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+.tab {
+  font-size: 14px;
+}
+    :root {
+      --bg: #ffffff;
+      --text: #111;
+      --tab-bg: #e0e0e0;
+      --tab-active: #ffffff;
+      --tab-hover: #d0d0d0;
+      --address-bg: #f0f0f0;
+      --iframe-bg: #ffffff;
+    }
+    body.dark {
+      --bg: #1e1e2f;
+      --text: #f0f0f0;
+      --tab-bg: #3a3a50;
+      --tab-active: #2c2c3f;
+      --tab-hover: #505070;
+      --address-bg: #404060;
+      --iframe-bg: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    #top-bar {
+      display: flex;
+      align-items: center;
+      background: var(--tab-bg);
+      padding: 4px 8px;
+      overflow-x: auto;
+    }
+
+    #tab-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #tab-bar {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+
+    .tab {
+      background: var(--tab-bg);
+      padding: 6px 12px;
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tab:hover {
+      background: var(--tab-hover);
+    }
+
+    .tab.active {
+      background: var(--tab-active);
+      font-weight: bold;
+      color: var(--text);
+    }
+
+    .tab .title {
+      flex-grow: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .close-btn {
+      margin-left: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #888;
+      flex-shrink: 0;
+    }
+
+    .close-btn:hover {
+      color: red;
+    }
+
+    .add-tab {
+      font-size: 20px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #666;
+    }
+
+    .add-tab:hover {
+      color: #007bff;
+    }
+
+    .spacer {
+      flex-grow: 1;
+    }
+
+    #settings {
+      font-size: 16px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      color: #666;
+      margin-left: 8px;
+    }
+
+    #settings:hover {
+      color: #007bff;
+    }
+
+    #settings-panel {
+      position: absolute;
+      top: 36px;
+      right: 10px;
+      background: var(--tab-active);
+      border: 1px solid #ccc;
+      padding: 10px;
+      display: none;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 1000;
+    }
+
+    #address-bar {
+      display: flex;
+      padding: 6px 10px;
+      background: var(--address-bg);
+    }
+
+    #address-input {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    .iframe-container {
+      display: none;
+      height: calc(100vh - 88px);
+      flex-direction: column;
+    }
+
+    .iframe-container.active {
+      display: flex;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: var(--iframe-bg);
+    }
+  </style>
+</head>
+<body class="light">
+
+  <div id="top-bar">
+    <div id="tab-wrapper">
+      <div id="tab-bar"></div>
+      <button class="add-tab" onclick="addTab()">＋</button>
+    </div>
+    <div class="spacer"></div>
+    <button id="settings">⚙</button>
+  </div>
+
+  <div id="address-bar">
+    <input id="address-input" placeholder="URLまたはキーワードを入力">
+  </div>
+
+  <div id="iframe-area"></div>
+
+  <div id="settings-panel">
+    <label>
+      テーマ:
+      <select id="theme-select">
+        <option value="light">ライト</option>
+        <option value="dark">ダーク</option>
+      </select>
+    </label>
+    <label>
+      検索エンジン:
+      <select id="engine-select">
+        <option value="bing">Bing</option>
+        <option value="duckduckgo">DuckDuckGo</option>
+      </select>
+    </label>
+  </div>
+
+  <script>
+    let tabIdCounter = 0;
+    const tabs = {};
+    let defaultEngine = 'bing';
+
+    const engines = {
+      bing: q => `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
+      duckduckgo: q => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`
+    };
+
+    const parseToUrl = v => {
+      if (/^https?:\/\//.test(v)) return '/proxy/' + v;
+      if (/^[\w.-]+\.[a-z]{2,}$/.test(v)) return '/proxy/https://' + v;
+      return '/proxy/' + engines[defaultEngine](v);
+    };
+
+    function addTab(initialValue) {
+      const id = 'tab' + (++tabIdCounter);
+      const tab = document.createElement('div');
+      tab.className = 'tab';
+      tab.dataset.tab = id;
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'title';
+      titleSpan.textContent = '新しいタブ';
+
+      const close = document.createElement('span');
+      close.className = 'close-btn';
+      close.textContent = '×';
+      close.onclick = e => { e.stopPropagation(); closeTab(id); };
+
+      tab.append(titleSpan, close);
+      tab.onclick = () => switchTab(id);
+      document.getElementById('tab-bar').appendChild(tab);
+
+      const cont = document.createElement('div');
+      cont.className = 'iframe-container';
+      cont.id = id;
+
+      const iframe = document.createElement('iframe');
+      const rawUrl = initialValue || 'https://www.bing.com';
+      iframe.src = parseToUrl(rawUrl);
+      iframe.dataset.url = rawUrl;
+
+      iframe.onload = () => {
+        const title = iframe.contentDocument?.title;
+        titleSpan.textContent = title?.slice(0, 18) || iframe.dataset.url;
+        if (getActiveId() === id) {
+          document.getElementById('address-input').value = iframe.dataset.url;
+        }
+      };
+
+      cont.appendChild(iframe);
+      document.getElementById('iframe-area').appendChild(cont);
+
+      tabs[id] = { tab, cont, iframe };
+      switchTab(id);
+    }
+
+    function switchTab(id) {
+      Object.entries(tabs).forEach(([key, o]) => {
+        const active = key === id;
+        o.tab.classList.toggle('active', active);
+        o.cont.classList.toggle('active', active);
+      });
+      document.getElementById('address-input').value = tabs[id].iframe.dataset.url;
+    }
+
+    function closeTab(id) {
+      const active = tabs[id].tab.classList.contains('active');
+      tabs[id].tab.remove();
+      tabs[id].cont.remove();
+      delete tabs[id];
+      if (active) {
+        const keys = Object.keys(tabs);
+        if (keys.length) switchTab(keys[0]);
+      }
+    }
+
+    function getActiveId() {
+      return Object.keys(tabs).find(k => tabs[k].tab.classList.contains('active'));
+    }
+
+    document.getElementById('address-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const v = e.target.value.trim();
+        if (!v) return;
+        const cur = getActiveId();
+        tabs[cur].iframe.src = parseToUrl(v);
+        tabs[cur].iframe.dataset.url = v;
+      }
+    });
+
+    document.getElementById('settings').onclick = () => {
+      const panel = document.getElementById('settings-panel');
+      panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    };
+
+    document.getElementById('theme-select').onchange = e => {
+      document.body.className = e.target.value;
+    };
+
+    document.getElementById('engine-select').onchange = e => {
+      defaultEngine = e.target.value;
+    };
+
+    addTab();
+  </script>
+</body>
+</html>
