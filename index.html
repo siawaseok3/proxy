@@ -215,11 +215,18 @@
       duckduckgo: q => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`
     };
 
-    const parseToUrl = v => {
-      if (/^https?:\/\//.test(v)) return '/proxy/' + v;
-      if (/^[\w.-]+\.[a-z]{2,}$/.test(v)) return '/proxy/https://' + v;
-      return '/proxy/' + engines[defaultEngine](v);
-    };
+  const getOriginWithoutPort = () =>
+    window.location.protocol + '//' + window.location.hostname;
+
+  const parseToUrl = v => {
+    let path;
+    if (/^https?:\/\//.test(v)) path = '/proxy/' + v;
+    else if (/^[\w.-]+\.[a-z]{2,}$/.test(v)) path = '/proxy/https://' + v;
+    else path = '/proxy/' + engines[defaultEngine](v);
+
+    return new URL(path, getOriginWithoutPort()).toString();
+  };
+
 
     function addTab(initialValue) {
       const id = 'tab' + (++tabIdCounter);
