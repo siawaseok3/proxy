@@ -5,6 +5,21 @@ const unblocker = require('unblocker');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// スラッシュ補完ミドルウェア
+app.use((req, res, next) => {
+  if (req.url.startsWith('/proxy/')) {
+    try {
+      const targetUrl = decodeURIComponent(req.url.replace(/^\/proxy\//, ''));
+      const parsed = new URL(targetUrl);
+      if (!parsed.pathname.endsWith('/') && !path.extname(parsed.pathname)) {
+        parsed.pathname += '/';
+        return res.redirect('/proxy/' + encodeURIComponent(parsed.href));
+      }
+    } catch (e) {}
+  }
+  next();
+});
+
 const proxy = unblocker({
   prefix: '/proxy',
   responseMiddleware: [
